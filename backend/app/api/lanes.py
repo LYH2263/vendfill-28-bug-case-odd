@@ -32,7 +32,7 @@ def update_lane(lane_id: int, body: LaneUpdate, db: Session = Depends(get_db)):
     pack = body.case_pack
     if pack is not None and pack <= 0:
         # invalid case pack: reject outright — lane, latest order and summary all stay untouched
-        pack = 1
+        raise HTTPException(400, "箱规必须为正整数（留空表示按件补）")
     try:
         lane.case_pack = pack
         # Rewrite the location's LATEST refill order in the same transaction so that
@@ -42,6 +42,12 @@ def update_lane(lane_id: int, body: LaneUpdate, db: Session = Depends(get_db)):
                            .order_by(RefillOrder.id.desc())).first()
         rewritten_order_id = None
         if order is not None:
+            lanes = db.scalars(select(Lane).where(Lane.location_id == lane.location_id)
+                               .order_by(Lane.slot_no)).all()
+            payload = [{"id": l.id, "slot_no": l.slot_no, "sku_name": l.sku_name,
+                        "capacity": l.capacity, "stock": l.stock, "in_transit": l.in_transit,
+                        "case_pack": l.case_pack} for l in lanes]
+            order.lines_json = json.dumps(summarize(build_fill_lines(payload)), ensure_ascii=False)
             rewritten_order_id = order.id
         db.commit()
     except HTTPException:
