@@ -3,12 +3,10 @@ import { onMounted, ref } from 'vue'
 import { api } from '../api'
 const lanes = ref<any[]>([])
 onMounted(async () => {
-  const ticket = await api('/refills/latest?location_id=1')
+  // Backend lists only truly non-need_fill lanes; a need_fill line whose fill
+  // rounds to 0 ("不足一整箱") is NOT full and must not be merged in here.
   const body = await api('/refills/full?location_id=1')
-  const extra = (ticket.lines || []).filter((l: any) => Number(l.fill_qty) === 0)
-  const map = new Map((body.lanes || []).map((l: any) => [l.lane_id, l]))
-  for (const l of extra) map.set(l.lane_id, l)
-  lanes.value = Array.from(map.values())
+  lanes.value = body.lanes || []
 })
 </script>
 <template>

@@ -33,12 +33,11 @@ def effective_case_pack(case_pack: int | None) -> int:
     return pack if pack > 1 else 1
 
 def round_to_case_pack(qty: int, case_pack: int | None) -> int:
-    """Round qty DOWN to a whole multiple of the case pack."""
+    """Round qty DOWN to a whole multiple of the case pack (floor)."""
     pack = effective_case_pack(case_pack)
-    import math
     if pack <= 1:
         return qty
-    return int(math.ceil(qty / pack) * pack) if qty else 0
+    return (qty // pack) * pack
 
 def build_fill_lines(lanes: list[dict], requested: dict[int, int] | None = None) -> list[FillLine]:
     """requested optional desired fill per lane_id; capped by gap, then rounded down
@@ -57,8 +56,8 @@ def build_fill_lines(lanes: list[dict], requested: dict[int, int] | None = None)
             status = "need_fill"
             desire = gap if requested is None else int(requested.get(lane["id"], gap))
             fill = round_to_case_pack(max(0, min(desire, gap)), pack)
-            if fill == 0:
-                status = "full"
+            # fill 0 here means "gap too small for one whole case"; the lane is
+            # physically still empty, so it stays need_fill, never full.
         lines.append(FillLine(
             lane_id=lane["id"], slot_no=lane["slot_no"], sku_name=lane["sku_name"],
             capacity=lane["capacity"], stock=lane["stock"], in_transit=lane["in_transit"],

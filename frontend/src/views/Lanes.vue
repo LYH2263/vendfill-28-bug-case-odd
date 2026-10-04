@@ -22,6 +22,8 @@ async function savePack(r: any) {
   const pack = raw === '' ? null : Number(raw)
   if (pack !== null && (!Number.isInteger(pack) || pack <= 0)) {
     error.value = `${r.slot_no} 箱规必须为正整数（留空表示按件补）`
+    // illegal pack is never accepted by the card: snap input back to the saved value
+    packInputs.value[r.id] = r.case_pack == null ? '' : String(r.case_pack)
     return
   }
   saving.value = r.id
@@ -31,7 +33,9 @@ async function savePack(r: any) {
     await reload()
     refill.value = await api('/refills/latest?location_id=1')
   } catch (e: any) {
-    error.value = `${r.slot_no} 保存失败：${e?.message ?? e}`
+    error.value = `${r.slot_no} 保存失败：箱规与补货单均未改动（${e?.message ?? e}）`
+    // server rolled everything back; card input must show the saved pack too
+    packInputs.value[r.id] = r.case_pack == null ? '' : String(r.case_pack)
   } finally {
     saving.value = null
   }
@@ -73,7 +77,8 @@ async function savePack(r: any) {
       <h2>*** 补货建议单 ***</h2>
       <div class="vf-receipt-line" v-for="l in refill.lines" :key="l.lane_id">
         <span>{{ l.slot_no }} {{ l.sku_name }}</span>
-        <span>x{{ l.fill_qty }}<small v-if="l.case_pack > 1"> 箱{{ l.case_pack }}</small></span>
+        <span v-if="l.status === 'need_fill' && l.fill_qty === 0">不足整箱<small v-if="l.case_pack > 1"> · 箱{{ l.case_pack }}</small></span>
+        <span v-else>x{{ l.fill_qty }}<small v-if="l.case_pack > 1"> 箱{{ l.case_pack }}</small></span>
       </div>
       <p class="muted" style="margin:0.75rem 0 0;font-size:0.72rem;color:#6a5e48;text-align:center">
         — 机面打印预览 —
